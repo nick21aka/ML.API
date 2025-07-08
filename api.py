@@ -1,5 +1,4 @@
-%%writefile api.py
-# 👇 Aquí va el contenido completo del archivo
+
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, conlist
 import joblib
