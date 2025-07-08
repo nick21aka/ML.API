@@ -1,51 +1,57 @@
-# api.py  –  FastAPI con dos endpoints: clasificación y regresión
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 from typing import List
 import joblib
 
-# ====================  CARGAR MODELOS  ====================
+# ==== Carga de modelos ====
+# Asegúrate de que los .joblib estén en la misma carpeta
 try:
-    clf = joblib.load("clf_survived_AUC_80.joblib")         # clasificador (AUC > 0.80)
-    reg = joblib.load("reg_team_equip_R2_80.joblib")        # regresor (R² > 0.80)
-except FileNotFoundError as e:
-    # Render mostrará el traceback si alguno falta
-    raise RuntimeError(f"Modelo faltante: {e}")
+    clf = joblib.load("clf_survived_AUC>80.joblib")  # modelo de clasificación (30 features)
+    reg = joblib.load("reg_team_equip_R2>80.joblib")  # modelo de regresión (26 features)
+except FileNotFoundError as err:
+    # Si falta un archivo, la API no arrancará y Render mostrará el traceback
+    raise RuntimeError(f"Modelo faltante: {err}")
 
-# ====================  APP FASTAPI  ========================
+
 app = FastAPI(
     title="CS:GO ML API",
-    description="Predice supervivencia de ronda (clasificación) y valor de equipo (regresión)",
-    version="1.0"
+    description="Clasificación de supervivencia (30 features) y regresión de valor de equipo (26 features)",
+    version="1.0.0"
 )
 
-# ====================  ESQUEMAS DE ENTRADA  ================
 
+# ============ Esquemas de entrada ============
+# Clasificación → 30 valores numéricos (orden EXACTO del ColumnTransformer)
 class ClfInput(BaseModel):
-    # 17 números EXACTOS en el mismo orden que espera tu pipeline de clasificación
-    features: List[float] = Field(..., min_length=17, max_length=17)
+    features: List[float] = Field(..., min_length=30, max_length=30)
 
+# Regresión → 26 valores numéricos (orden EXACTO del ColumnTransformer)
 class RegInput(BaseModel):
-    # 22 números EXACTOS en el mismo orden que espera tu pipeline de regresión
-    features: List[float] = Field(..., min_length=22, max_length=22)
+    features: List[float] = Field(..., min_length=26, max_length=26)
 
-# ====================  ENDPOINTS  ==========================
 
-@app.post("/predict/survival")
-def predict_survival(data: ClfInput):
-    """Devuelve probabilidad y etiqueta (0/1) de sobrevivir la ronda."""
+# ============ Endpoints ============
+@app.post("/predecir/supervivencia")
+def predecir_supervivencia(data: ClfInput):
+    """Devuelve probabilidad y etiqueta (0/1) de supervivencia."""
     try:
         proba = clf.predict_proba([data.features])[0, 1]
         label = int(proba >= 0.5)
-        return {"probability": round(float(proba), 3), "label": label}
-    except Exception as err:
-        raise HTTPException(status_code=400, detail=str(err))
+        return {
+            "probability": round(float(proba), 3),
+            "label": label
+        }
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
-@app.post("/predict/equipment_value")
-def predict_equipment_value(data: RegInput):
+
+@app.post("/predecir/valor_del_equipo")
+def predecir_valor_equipo(data: RegInput):
     """Devuelve el valor inicial del equipo (dinero)."""
     try:
         value = reg.predict([data.features])[0]
-        return {"equipment_value": round(float(value), 2)}
-    except Exception as err:
-        raise HTTPException(status_code=400, detail=str(err))
+        return {
+            "equipment_value": round(float(value), 2)
+        }
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
